@@ -14,9 +14,14 @@ const AuthenticationsServices = require("./services/AuthenticationsServices");
 const TokenManager = require("./tokenize/TokenManager");
 const AuthenticationsValidator = require("./validator/authentications");
 
+//Ads
 const ads = require("./api/ads");
 const AdsService = require("./services/AdsService");
 const AdsValidator = require("./validator/ads");
+
+//Firebase
+const firebase = require("./api/firebase");
+const FirebaseValidator = require("./validator/firebase");
 
 const init = async () => {
   const usersServices = new UsersServices();
@@ -80,6 +85,15 @@ const init = async () => {
         usersServices,
         tokenManager: TokenManager,
         validator: AuthenticationsValidator,
+      },
+    },
+    {
+      plugin: firebase,
+      options: {
+        service: authenticationsServices,
+        validator: FirebaseValidator,
+        tokenManager: TokenManager,
+        userService: usersServices,
       },
     },
   ]);

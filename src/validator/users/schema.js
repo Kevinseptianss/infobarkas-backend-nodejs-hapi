@@ -22,5 +22,6 @@ const UserPayLoadSchema = Joi.object({
 const UserUpdateSchema = Joi.object({
   name: Joi.string().allow('').optional(),
   phone: Joi.string().allow('').optional(),
+  location: Joi.string().allow('').optional(),
 });
 module.exports = { UserPayLoadSchema, UserUpdateSchema };

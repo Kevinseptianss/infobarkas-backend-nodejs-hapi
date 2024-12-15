@@ -1,7 +1,7 @@
 const { Pool } = require("pg");
 const InvariantError = require("../exceptions/InvariantError");
 const { nanoid } = require("nanoid");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const AuthenticationError = require("../exceptions/AuthenticationError");
 const NotFoundError = require("../exceptions/NotFoundError");
 class UsersServices {
@@ -12,6 +12,25 @@ class UsersServices {
   async addUser({ email, name, password, location }) {
     await this.verifyEmail(email);
     const id = `user-${nanoid(16)}`;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const createdAt = new Date().toISOString();
+    const updatedAt = createdAt;
+    const query = {
+      text: "INSERT INTO users VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+      values: [id, email, hashedPassword, name, createdAt, updatedAt, location],
+    };
+
+    const result = await this._pool.query(query);
+
+    if (!result.rows.length) {
+      throw new InvariantError("User gagal di tambahkan");
+    }
+
+    return result.rows[0].id;
+  }
+
+  async addUserAuth({ id, email, name, password, location }) {
+    await this.verifyEmail(email);
     const hashedPassword = await bcrypt.hash(password, 10);
     const createdAt = new Date().toISOString();
     const updatedAt = createdAt;
@@ -44,12 +63,28 @@ class UsersServices {
     }
   }
 
+  async checkEmail(email) {
+    const query = {
+      text: "SELECT email FROM users WHERE email = $1",
+      values: [email],
+    };
+
+    const result = await this._pool.query(query);
+
+    if (result.rows.length > 0) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   async getUserProfile(userId) {
     const query = {
       text: `SELECT 
                 users.id, 
                 users.name, 
-                users.email, 
+                users.email,
+                users.location,
                 users_profile.profile_path, 
                 users_profile.phone 
               FROM users 
@@ -66,7 +101,7 @@ class UsersServices {
     return result.rows[0];
   }
 
-  async putUserProfile(userId, name, phone) {
+  async putUserProfile(userId, name, phone, location) {
     // First query to update the user's name
     try {
       if (name) {
@@ -76,35 +111,66 @@ class UsersServices {
                  WHERE id = $1`,
           values: [userId, name],
         };
-  
+
         // Execute the first query
         const result = await this._pool.query(query);
-  
+
         // Check if the user was found and updated
         if (result.rowCount === 0) {
           throw new NotFoundError("User  tidak ditemukan");
         }
       }
-  
+
       if (phone) {
-        // Second query to update the user's profile
-        const queryProfile = {
-          text: `UPDATE users_profile
-           SET phone = $2
-           WHERE user_id = $1`,
-          values: [userId, phone],
+        // First, check if the user profile exists
+        const checkProfileQuery = {
+          text: `SELECT COUNT(*) FROM users_profile WHERE user_id = $1`,
+          values: [userId],
         };
-  
-        // Execute the second query
+      
+        const result = await this._pool.query(checkProfileQuery);
+        const profileExists = result.rows[0].count > 0; // Check if any profile exists
+      
+        if (profileExists) {
+          // If the profile exists, update it
+          const updateProfileQuery = {
+            text: `UPDATE users_profile
+                   SET phone = $2
+                   WHERE user_id = $1`,
+            values: [userId, phone],
+          };
+      
+          // Execute the update query
+          await this._pool.query(updateProfileQuery);
+        } else {
+          // If the profile does not exist, create a new profile
+          const createProfileQuery = {
+            text: `INSERT INTO users_profile (user_id, phone)
+                   VALUES ($1, $2)`,
+            values: [userId, phone],
+          };
+      
+          // Execute the insert query
+          await this._pool.query(createProfileQuery);
+        }
+      }
+
+      if (location) {
+        const queryProfile = {
+          text: `UPDATE users
+           SET location = $2
+           WHERE id = $1`,
+          values: [userId, location],
+        };
+
         await this._pool.query(queryProfile);
       }
-  
+
       // Optionally return the updated user information or a success message
       return { userId, name, phone }; // or return the updated user object if needed
-    } catch(error) {
+    } catch (error) {
       console.log(error);
     }
-    
   }
 
   async addProfilePicture(userId, profile_path) {

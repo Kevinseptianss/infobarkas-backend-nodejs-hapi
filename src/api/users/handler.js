@@ -61,23 +61,28 @@ class UserHandler {
   }
 
   async getUserInfoHandler(request, h) {
-    const userId = request.auth.credentials.id;
-    const user = await this._service.getUserProfile(userId);
-
-    return {
-      status: "success",
-      data: {
-        user,
-      },
-    };
+    try {
+      const userId = request.auth.credentials.id;
+      const user = await this._service.getUserProfile(userId);
+  
+      return {
+        status: "success",
+        data: {
+          user,
+        },
+      };
+    } catch (error) {
+      console.log(error);
+    }
+    
   }
 
   async putUserInfoHandler(request, h) {
     try {
       this._validator.validateEditUserPayLoad(request.payload);
       const userId = request.auth.credentials.id;
-      const { name, phone } = request.payload;
-      const result = await this._service.putUserProfile(userId, name, phone);
+      const { name, phone, location } = request.payload;
+      const result = await this._service.putUserProfile(userId, name, phone, location);
 
       const response = h.response({
         status: "success",
